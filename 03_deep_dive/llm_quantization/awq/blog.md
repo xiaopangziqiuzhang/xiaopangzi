@@ -57,7 +57,7 @@ AWQ的作者通过大量实验发现了一个关键现象：
 量化就是将高精度的数值（如FP32）映射到低精度的离散值（如INT4）。
 
 对于对称量化，我们有：
-$$ q = \text{round}(w / s) $$
+$$ q = \mathrm{round}(w / s) $$
 $$ \hat{w} = q \cdot s $$
 
 其中：
@@ -67,7 +67,7 @@ $$ \hat{w} = q \cdot s $$
 - \( \hat{w} \) 是反量化后的权重
 
 量化误差为：
-$$ \text{error} = \hat{w} - w $$
+$$ \mathrm{error} = \hat{w} - w $$
 
 ### 3.2 重要权重识别
 
@@ -108,9 +108,9 @@ AWQ结合了SmoothQuant的思想，但进行了优化：
 3. 找到一个缩放因子 \( s_i \)，使得量化误差最小
 
 更具体地说，AWQ解决以下优化问题：
-$$ \min_{s_i} \mathbb{E}_{x} \left[ \left\| Q\left(\frac{W_{i,:}}{s_i}\right) s_i x - W_{i,:} x \right\|^2 \right] $$
+$$ \min_{s_i} \frac{1}{N} \sum_{k=1}^N \left| Q\left(\frac{W_{i,:}}{s_i}\right) s_i x_k - W_{i,:} x_k \right|^2 $$
 
-其中 \( Q(\cdot) \) 是量化操作。
+其中 \( Q(\cdot) \) 是量化操作，\( x_k \) 是第k个校准样本。
 
 这个优化的直观理解是：
 - 我们要找一个缩放因子 \( s_i \)
@@ -122,13 +122,13 @@ $$ \min_{s_i} \mathbb{E}_{x} \left[ \left\| Q\left(\frac{W_{i,:}}{s_i}\right) s_
 在实际实现中，AWQ使用了一个简化但有效的方案：
 
 1. 对于每个输出通道，计算权重的最大绝对值：
-   $$ \text{max}_w^{(i)} = \max_j |W_{i,j}| $$
+   $$ \mathrm{max}_w^{(i)} = \max_j |W_{i,j}| $$
 2. 计算对应输入激活的平均幅度（通过校准数据）：
-   $$ \text{avg}_a^{(i)} = \frac{1}{N} \sum_{k=1}^N |x_k| $$
+   $$ \mathrm{avg}_a^{(i)} = \frac{1}{N} \sum_{k=1}^N |x_k| $$
 3. 缩放因子设置为：
-   $$ s_i = \text{max}_w^{(i)} / (2^{b-1} - 1) \cdot (0.5 + 0.5 \cdot \text{norm}(\text{avg}_a^{(i)})) $$
+   $$ s_i = \mathrm{max}_w^{(i)} / (2^{b-1} - 1) \cdot (0.5 + 0.5 \cdot \mathrm{norm}(\mathrm{avg}_a^{(i)})) $$
 
-其中 \( \text{norm}(\cdot) \) 是归一化函数，将激活幅度归一化到[0,1]范围。
+其中 \( \mathrm{norm}(\cdot) \) 是归一化函数，将激活幅度归一化到[0,1]范围。
 
 这个方案的特点是：
 - 重要的通道（激活幅度大）使用相对较大的缩放因子
@@ -158,7 +158,7 @@ $$ \min_{s_i} \mathbb{E}_{x} \left[ \left\| Q\left(\frac{W_{i,:}}{s_i}\right) s_
    - \( W'_{i,j} = W_{i,j} / s_i \)
 
 3. **量化权重**：
-   - \( Q_{i,j} = \text{round}(W'_{i,j}) \)
+   - \( Q_{i,j} = \mathrm{round}(W'_{i,j}) \)
    - 裁剪到量化范围：\( Q_{i,j} \in [-2^{b-1}, 2^{b-1}-1] \)
 
 4. **保存结果**：
